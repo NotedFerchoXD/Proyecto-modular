@@ -1,0 +1,65 @@
+import cv2 #librería para trabajar con imágenes en Python.
+import torch# biblioteca para a aplicaciones relacionadas al Machine Learning, el reconocimiento de imágenes y el aprendizaje profundo
+import torchvision.transforms as transforms
+
+# ... (código previo)
+# Cargar el modelo AlexNet preentrenado
+model = torch.hub.load('pytorch/vision:v0.10.0', 'alexnet', pretrained=True)
+model.eval()
+
+# Definir transformaciones para preprocesar las imágenes
+transform = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+
+# Cargar el archivo de mapeo de clases (imagenet_classes.txt)
+class_mapping = {}
+with open('imagenet_classes.txt') as f:
+    for line in f:
+        index, class_name = line.strip().split(': ')
+        class_mapping[int(index)] = class_name
+
+# Inicializar la cámara
+cap = cv2.VideoCapture(0)
+
+
+while True:
+    ret, frame = cap.read()
+
+    if not ret:
+        break
+
+    # Preprocesar el frame para que coincida con las entradas de AlexNet
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    input_tensor = transform(frame)
+    input_tensor = input_tensor.unsqueeze(0)  # Añadir dimensión de lote
+
+    # Realizar una inferencia en el modelo AlexNet
+    with torch.no_grad():
+        output = model(input_tensor)
+
+    # Obtener la etiqueta con la mayor probabilidad
+    _, predicted_class = output.max(1)
+    probabilities = torch.nn.functional.softmax(output, dim=1)[0] * 100
+    class_id = predicted_class.item()
+
+    # Obtener el nombre de la clase a partir del mapeo
+    class_name = class_mapping.get(class_id, 'Desconocida')
+
+    # Dibujar un cuadro y mostrar la clase predicha y su probabilidad
+    cv2.rectangle(frame, (0, 0), (400, 70), (0, 0, 0), -1)  # Fondo
+    cv2.putText(frame, f"Clase: {class_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(frame, f"Probabilidad: {probabilities[class_id]:.2f}%", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    # Mostrar el frame con la clase predicha y la probabilidad
+    cv2.imshow('AlexNet Object Tracking', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'): #Condición para salir del ciclo anterior
+        break
+
+# Liberar recursos
+cap.release()
+cv2.destroyAllWindows()
