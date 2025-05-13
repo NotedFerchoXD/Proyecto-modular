@@ -1,0 +1,51 @@
+import torch #biblioteca para a aplicaciones relacionadas al Machine Learning, el reconocimiento de imágenes y el aprendizaje profundo
+import cv2
+from torchvision import transforms as T
+import torchvision 
+
+
+model = torchvision.models.detection.ssd300_vgg16(pretrained=True)
+model.eval()
+
+
+cap = cv2.VideoCapture(0)  #Abre la cámara predeterminada (cambia el índice si tienes varias cámaras).
+
+while True: 
+    status, image = cap.read() 
+                            
+
+    if not status:
+        break
+
+    img = image.copy()
+    #Los modelos de PyTorch suelen trabajar con tensores en lugar de imágenes, por lo que esta transformación es necesaria.
+    imgtransform = T.ToTensor()#un tensor es una estructura multidimensional que puede tener cualquier número de dimensiones o ejes.
+    #Aquí, la imagen original (almacenada en img) se pasa a través de la transformación ToTensor. La imagen se convierte en un tensor de PyTorch. 
+    image = imgtransform(image)
+
+    with torch.no_grad():
+        ypred = model([image]) 
+        bbox, scores = ypred[0]['boxes'], ypred[0]['scores']
+        
+        nums = torch.argwhere(scores > 0.05).shape[0] #Filtro para seguir objetos con una confiabilidad mayor 0.80
+        for i in range(nums):
+            #Se toma los objetos detectados (i) y se crea un bbox con las coordenadas y estas las volvemos enteras
+            x, y, w, h = bbox[i].numpy().astype('int')
+            #Por la libreria cv2 se asigna y se muestras un rectagunlo (bbox) al img -> (x,y), (w,h)
+            cv2.rectangle(img, (x, y), (w, h), (0, 0, 255), 5) 
+            score = scores[i].item() #Se guarda la confianza
+            
+            #Se muestra  la confianza
+            cv2.putText(img, f"{score:.2f}", 
+                        (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 
+                        0.5,
+                        (0, 255, 0), 2)
+            
+
+    cv2.imshow('SSD Object Detection', img)#Muestra la img
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):#Condición para salir del ciclo anterior
+        break
+
+cap.release()
+cv2.destroyAllWindows()#Esta función destruye todas las ventanas que hemos creado.
